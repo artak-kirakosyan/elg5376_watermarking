@@ -1,5 +1,6 @@
 clear;
 clc;
+datetime
 
 oldpath = path;
 path(oldpath, "functions");
@@ -14,8 +15,10 @@ wavelet_name = "haar";
 %intensiveness value
 intensiveness = 0.4;
 %frame length values
-frame_length = 1024;
-attacks = ["no_attack"];
+frame_length = 8192;
+attacks = ["no_attack", "gauss 10", "gauss 15", "gauss 18", "gauss 20", ...
+           "filter 4000", "filter 8000", "filter 20000", "quantize", ...
+           "downsample 11025", "downsample 22050", ];
 
 if exist(results_dir, 'dir')
     rmdir(results_dir, 's');
@@ -95,3 +98,4 @@ for attack_name = attacks
     end
     save(curr_res_dir +attack_name, "experimental_results");
 end
+datetime
