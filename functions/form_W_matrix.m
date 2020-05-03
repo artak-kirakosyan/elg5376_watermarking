@@ -1,5 +1,3 @@
-
-
 function w_matrix = form_W_matrix(size, current_bits)
     % form the w matrix which contains bits
     w_matrix = zeros(size);

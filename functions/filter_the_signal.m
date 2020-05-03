@@ -1,6 +1,4 @@
-
-%filter
-function [] = filter_the_signal(source_file_path, target_file_path, cut_off_freq)
+function filter_the_signal(source_file_path, target_file_path, cut_off_freq)
     % design a butterworth filter of 10th order and pass the audio through it, then write
     % to another file
     [audio, fs] = audioread(source_file_path);

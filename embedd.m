@@ -1,4 +1,11 @@
-function embedd(source_file_path, watermarked_file_path, result_file_path, watermark, sub_matrix_size, wavelet_name, intensiveness, frame_length)
+function embedd(audio_path, ...
+                audio_path_wtmkd, ...
+                extr_info_path, ...
+                watermark, ...
+                sub_matrix_size, ...
+                wavelet_name, ...
+                intensiveness, ...
+                frame_length)
     
     % if watermark has 60% ones, then inverted watermark will be used
     if sum(watermark) >= 0.6 * length(watermark)
@@ -9,25 +16,46 @@ function embedd(source_file_path, watermarked_file_path, result_file_path, water
     end
 
     % read audio file
-    [audio,fs] = audioread(source_file_path);
+    [audio,fs] = audioread(audio_path);
     
     % pass audio and all necessary information to add the watermark
-    [watermarked_audio, u_matrices, v_matrices, watermark_tail, audio_tail, number_of_watermarks] = embedding_manager(audio, watermark, intensiveness, sub_matrix_size, wavelet_name, frame_length);
+    [watermarked_audio, ...
+        u_matrices, ...
+        v_matrices, ...
+        watermark_tail, ...
+        audio_tail, ...
+        number_of_watermarks] = embedding_manager(audio, ...
+                                                  watermark, ...
+                                                  intensiveness, ...
+                                                  sub_matrix_size, ...
+                                                  wavelet_name, ...
+                                                  frame_length);
     % disp("Finished embedding the watermark");
     
     % write watermarked audio into file
-    audiowrite(watermarked_file_path,watermarked_audio, fs);
+    audiowrite(audio_path_wtmkd,watermarked_audio, fs);
     %disp("Finished writing watermarked audio");
     
     % add all results needed in extraction stage and write to file
-    results = {u_matrices, v_matrices, watermark_tail, audio_tail, number_of_watermarks, inverted, intensiveness};
-    save(result_file_path, 'results');
+    results = {u_matrices, v_matrices, watermark_tail, audio_tail, ...
+        number_of_watermarks, inverted, intensiveness};
+    save(extr_info_path, 'results');
     % disp("Finished writing extraction info");
     disp("Embedding done!");
     disp("**************");
 end
 
-function [final_watermarked_audio,u_matrices, v_matrices, watermark_tail, audio_tail, number_of_watermarks] = embedding_manager(audio, watermark, intensiveness, sub_matrix_size, wavelet_name, frame_length)
+function [final_watermarked_audio, ...
+          u_matrices, ...
+          v_matrices, ...
+          watermark_tail, ...
+          audio_tail, ...
+          number_of_watermarks] = embedding_manager(audio, ...
+                                                    watermark, ...
+                                                    intensiveness, ...
+                                                    sub_matrix_size, ...
+                                                    wavelet_name, ...
+                                                    frame_length)
     audio_shape = size(audio);
     if audio_shape(2) == 1
         % reshaping audio from column to raw for easy analysis
@@ -38,7 +66,7 @@ function [final_watermarked_audio,u_matrices, v_matrices, watermark_tail, audio_
             audio = reshape(audio, 1, audio_shape(1)*audio_shape(2));
             two_channel_audio = 1;
         else
-            error("Too many channels, please provide one or 2 channel audio");
+            error("Too many channels, provide one or 2 channel audio");
         end
     end
     % keep length of audio in variable
@@ -68,7 +96,7 @@ function [final_watermarked_audio,u_matrices, v_matrices, watermark_tail, audio_
     samples_per_watermark = frame_length * frames_per_watermark;
   
     if(samples_per_watermark > audio_length)
-        error("Can't embed the watermark. Use longer audio or shorter watermark");
+        error("Audio is too short. Use longer audio or shorter watermark");
         %frames_per_watermark=floor(audio_length/frame_length);
         %samples_per_watermark = frame_length * frames_per_watermark;
     end
@@ -106,14 +134,19 @@ function [final_watermarked_audio,u_matrices, v_matrices, watermark_tail, audio_
         
         % pass all current info to a function, which embedds into 1 frame 
         % and returns results
-        [watermarked_frame, U1_matrix, V1_matrix] = embedd_one_frame(current_frame, current_bits, sub_matrix_size, intensiveness, wavelet_name);
+        [watermarked_frame, U1_matrix, V1_matrix] = ...
+            embedd_one_frame(current_frame, ...
+                             current_bits, ...
+                             sub_matrix_size, ...
+                             intensiveness, ...
+                             wavelet_name);
         
         % add u and v matrices to final result to be used in extraciton
-        u_matrices(:,:,index) = U1_matrix;
-        v_matrices(:,:,index) = V1_matrix;
+        u_matrices(:, :, index) = U1_matrix;
+        v_matrices(:, :, index) = V1_matrix;
         
         % append current frame to final one
-        watermarked_frames(:,:,index) = watermarked_frame;
+        watermarked_frames(:, :, index) = watermarked_frame;
     end
     
     % reshape the result, append the tail and reshape to initial form
@@ -131,7 +164,13 @@ function [final_watermarked_audio,u_matrices, v_matrices, watermark_tail, audio_
     audio_tail = length(audio_tail);
 end
 
-function [watermarked_frame, U1_matrix, V1_matrix] = embedd_one_frame(current_frame, current_bits, sub_matrix_size, intensiveness, wavelet_name)
+function [watermarked_frame, ...
+    U1_matrix, ...
+    V1_matrix] = embedd_one_frame(current_frame, ...
+                                  current_bits, ...
+                                  sub_matrix_size, ...
+                                  intensiveness, ...
+                                  wavelet_name)
     % use 4-level DWT on current frame to extract sub-bands and form the
     % D_matrix
     [A4, D1, D2, D3, D4, L] = four_level_dwt(current_frame, wavelet_name);
@@ -151,7 +190,7 @@ function [watermarked_frame, U1_matrix, V1_matrix] = embedd_one_frame(current_fr
     
     % keep these U1 and V1 as they will be used for the extraction
     [U1_matrix, S1, V1_matrix] = svd(s_embedded);
-
+    
     % insert watermarked values into big S_matrix
     for row = 1:sub_matrix_size
         for col = 1:sub_matrix_size
@@ -166,5 +205,5 @@ function [watermarked_frame, U1_matrix, V1_matrix] = embedd_one_frame(current_fr
     % inverse DWT
     [D1, D2, D3, D4] = extract_watermarked_sub_bands(D_watermarked);
     C = [A4, D4, D3, D2, D1];
-    watermarked_frame = waverec(C,L,wavelet_name);
+    watermarked_frame = waverec(C, L, wavelet_name);
 end

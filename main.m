@@ -1,81 +1,97 @@
-%%
 clear;
 clc;
 
-% original_audio_files = ["pop_watermarked_64", "pop_watermarked_128", "pop_watermarked_256", ...
-%     "classic_watermarked_64", "classic_watermarked_128", "classic_watermarked_256", ...
-%     "jazz_watermarked_64", "jazz_watermarked_128", "jazz_watermarked_256", ...
-%     "blues_watermarked_64", "blues_watermarked_128", "blues_watermarked_256", ...
-%     "piano_watermarked_64", "piano_watermarked_128", "piano_watermarked_256"];
-original_audio_files = ["pop", "classic", "jazz", "blues", "piano"];
+oldpath = path;
+path(oldpath, "functions");
 
-watermark_path = './testing/uottawa.png';
+%Control parameters
+watermark_path = "watermarks/uottawa.png";
+audio_dir = "test_audios";
 
-wavelet_name = "haar";
+results_dir = "results/";
 sub_matrix_size = 4;
-
-raw_watermark = imread(watermark_path);
-watermark = preprocess_watermark(raw_watermark);
-
+wavelet_name = "haar";
 %intensiveness value
 intensiveness = 0.4;
 %frame length values
-frame_length = 8192;
-i=1;
-experimental_results = ["Audio name","SNR","NC_old","NC","BER_old","BER"];
+frame_length = 1024;
+attacks = ["no_attack"];
 
-% result_files_for_MP3=["popresults.mat", "popresults.mat", "popresults.mat", ...
-%     "classicresults.mat", "classicresults.mat", "classicresults.mat", ...
-%     "jazzresults.mat", "jazzresults.mat", "jazzresults.mat", ...
-%     "bluesresults.mat", "bluesresults.mat", "bluesresults.mat", ...
-%     "pianoresults.mat", "pianoresults.mat", "pianoresults.mat"];
-%%
-for file = original_audio_files
-    % source_file_path - file to be watermarked
-    % watermarked_file_path - write to this file after watermarking
-    % extract_path - this audio will be used for extraction(add attacks to
-    % watermarked_file_path and write the result to extract_path.   
-    [source_file_path, watermarked_file_path, extract_path, extracted_watermark_path, ...
-        old_extracted_watermark_path, result_file_path] = create_paths(file, "wav");
-    embedd(source_file_path, watermarked_file_path, result_file_path, watermark, sub_matrix_size, ...
-    wavelet_name, intensiveness, frame_length);
-    snr = calculate_SNR_path(source_file_path, watermarked_file_path);
+if exist(results_dir, 'dir')
+    rmdir(results_dir, 's');
+end
+mkdir(results_dir);
 
-    %MP3 conversion
-%     convert2WAV(source_file_path, extract_path);
-%     result_file_path=result_files_for_MP3(i);
-%     snr=0;
-    
-    % this line is used when there is no attack
-    %add_no_attack(watermarked_file_path, extract_path);
-    
-    % Robustness test A. Additive White Gaussian Noise
-    % this line adds white gaussian noise(15DB) to the file and writes the result
-    % into extract_path
-    add_gaus_noise(watermarked_file_path, extract_path, 15);
-    
-    % Robustness test: Downsampling
-    %downsample_and_upsample(watermarked_file_path, extract_path, 11025);
+audio_files_struct = dir(fullfile(audio_dir, '*.wav'));
+audio_paths = [];
+audio_names = [];
 
-    %quantize_signal(watermarked_file_path, extract_path);
+for i=1:length(audio_files_struct)
+    audio_name = string(audio_files_struct(i).name);
+    audio_paths = [audio_paths; audio_dir + "/" + audio_name];
+    audio_names = [audio_names; audio_name.replace(".wav", "")];
+end
+
+num_of_attacks = length(attacks);
+num_of_audios = length(audio_paths);
+
+watermark = preprocess_watermark(watermark_path);
+
+
+for attack_name = attacks
     
-    % Robustness test D. Low-pass filtering
-    % this line filters the signal with given cut-off frequency and writes
-    % the filtered signal into extract_path file
-    % filter_the_signal(watermarked_file_path, extract_path, 4000);
+    experimental_results = strings(num_of_audios + 1, 6);
+    experimental_results(1, :) = ["Audio name", "SNR", "NC_old", "NC", "BER_old", "BER"];
+    curr_res_dir = results_dir + attack_name + "/";
+    mkdir(results_dir, attack_name);
     
-    extracted_watermark_old = extract_old(extract_path, result_file_path, sub_matrix_size, wavelet_name);
-    extracted_watermark = extract(extract_path, result_file_path, sub_matrix_size, wavelet_name);
+    for file_index = 1:num_of_audios
     
-    nc_old = calculate_NC(extracted_watermark_old, watermark);
-    ber_old = calculate_ber(extracted_watermark_old, watermark);
-    nc = calculate_NC(extracted_watermark, watermark);
-    ber = calculate_ber(extracted_watermark, watermark);
-    write_image(extracted_watermark,extracted_watermark_path);
-    write_image(extracted_watermark_old,old_extracted_watermark_path);
-    current_results = [file,snr,nc_old,nc,ber_old,ber];
-    experimental_results = [experimental_results;current_results];
+        audio_path = audio_paths(file_index);
+        audio_name = audio_names(file_index);
+        copyfile(audio_path, curr_res_dir);
+        
+        audio_path_wtmkd = curr_res_dir + audio_name + "_wtmkd.wav";
+        extr_info_path = curr_res_dir + audio_name + "_ext_info.mat";
     
-    i=i+1;
+        audio_path_attacked = curr_res_dir + audio_name + "_attacked.wav";
+        
+        extracted_wtmk_path = curr_res_dir + audio_name + "_wtmk_extr.png";
+        extracted_wtmk_path_old = curr_res_dir + audio_name + "_wtmk_extr_old.png";
     
+        embedd(audio_path, ...
+            audio_path_wtmkd, ...
+            extr_info_path, ...
+            watermark, ...
+            sub_matrix_size, ...
+            wavelet_name, ...
+            intensiveness, ...
+            frame_length);
+
+        snr = calculate_SNR_path(audio_path, audio_path_wtmkd);
+        attack_the_audio(attack_name, audio_path_wtmkd, audio_path_attacked);
+        
+
+        extracted_watermark_old = extract_old(audio_path_attacked, ...
+                                              extr_info_path, ...
+                                              sub_matrix_size, ...
+                                              wavelet_name);
+        extracted_watermark = extract(audio_path_attacked, ...
+                                      extr_info_path, ...
+                                      sub_matrix_size, ...
+                                      wavelet_name);
+
+        nc_old = calculate_NC(extracted_watermark_old, watermark);
+        ber_old = calculate_ber(extracted_watermark_old, watermark);
+
+        nc = calculate_NC(extracted_watermark, watermark);
+        ber = calculate_ber(extracted_watermark, watermark);
+
+        write_image(extracted_watermark, extracted_wtmk_path);
+        write_image(extracted_watermark_old, extracted_wtmk_path_old);
+
+        current_results = [audio_name, snr, nc_old, nc, ber_old, ber];
+        experimental_results(file_index + 1, :) = current_results;
+    end
+    save(curr_res_dir +attack_name, "experimental_results");
 end
